@@ -16,7 +16,6 @@ from torch_geometric.utils import is_undirected, to_undirected
 from torch_geometric.data import (Data, Dataset)
 
 # Local imports
-from sparse_tensor import SpTensor
 from datasets.graph import load_graph
 
 class HitGraphDataset(Dataset):
@@ -27,7 +26,7 @@ class HitGraphDataset(Dataset):
                  transform = None,
                  pre_transform = None):
         self._directed = directed
-        super(HitGraphDatasetG, self).__init__(root, transform, pre_transform)
+        super(HitGraphDataset, self).__init__(root, transform, pre_transform)
     
     def download(self):
         pass #download from xrootd or something later
