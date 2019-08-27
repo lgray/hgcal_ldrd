@@ -3,6 +3,8 @@ import awkward
 from datasets.graph import Graph
 from scipy.sparse import csr_matrix, find
 
+from .algo_kdtree import algo_kdtree
+from .algo_knn import algo_knn
 
 def make_graph_etaphi(arrays, valid_sim_indices, ievt, mask, layered_norm, algo, preprocessing_args):
    
@@ -23,7 +25,11 @@ def make_graph_etaphi(arrays, valid_sim_indices, ievt, mask, layered_norm, algo,
     sim_hits_mask[all_sim_hits] = True
     simmatched = np.where(sim_hits_mask[mask])[0]
     
-    #Ri, Ro, y_label = make_graph_kdtree(np.stack((eta, phi, layer_normed)).T, layer, simmatched, r=r)
-    Ri, Ro, y_label = algo(np.stack((eta, phi, layer_normed)).T, layer, simmatched, **preprocessing_args)
+    if algo == 'kdtree':
+        Ri, Ro, y_label = algo_kdtree(np.stack((x,y,layer)).T, layer, simmatched, **preprocessing_args)
+    elif algo == 'knn':
+        Ri, Ro, y_label = algo_knn(np.stack((x,y,layer)).T, layer, simmatched, **preprocessing_args)
+    else:
+        raise Exception('Edge construction algo %s unknown' % algo)
     
     return Graph(feats, Ri, Ro, y_label, simmatched)

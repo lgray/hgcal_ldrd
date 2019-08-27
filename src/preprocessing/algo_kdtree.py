@@ -4,7 +4,7 @@ from datasets.graph import Graph
 from scipy.spatial import cKDTree
 from scipy.sparse import csr_matrix, find
 
-def make_graph_kdtree(coords,layers,sim_indices,r):
+def algo_kdtree(coords,layers,sim_indices,r):
     #setup kd tree for fast processing
     the_tree = cKDTree(coords)
     
