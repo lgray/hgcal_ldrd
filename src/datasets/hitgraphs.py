@@ -57,8 +57,8 @@ class HitGraphDataset(Dataset):
         for idx,raw_path in enumerate(tqdm(self.raw_paths)):
             g = load_graph(raw_path)
             
-            Ro = g.spRo[0].T.astype(np.int64)
-            Ri = g.spRi[0].T.astype(np.int64)
+            Ro = g.Ro[0].T.astype(np.int64)
+            Ri = g.Ri[0].T.astype(np.int64)
             
             i_out = Ro[Ro[:,1].argsort()][:,0]
             i_in  = Ri[Ri[:,1].argsort()][:,0]
@@ -75,4 +75,4 @@ class HitGraphDataset(Dataset):
                 outdata.edge_index = torch.cat([outdata.edge_index,temp],dim=-1)
                 outdata.y = torch.cat([outdata.y,outdata.y])
         
-        torch.save(outdata, osp.join(self.processed_dir, 'data_{}.pt'.format(idx)))
+            torch.save(outdata, osp.join(self.processed_dir, 'data_{}.pt'.format(idx)))

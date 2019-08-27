@@ -5,7 +5,7 @@ from scipy.sparse import csr_matrix, find
 from sklearn.neighbors import NearestNeighbors
 
 
-def make_graph_knn(coords, layers, sim_indices, k):
+def algo_knn(coords, layers, sim_indices, k):
     
     nbrs = NearestNeighbors(algorithm='kd_tree').fit(coords)
     nbrs_sm = nbrs.kneighbors_graph(coords, k)

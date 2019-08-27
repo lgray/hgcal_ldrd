@@ -1,101 +1,138 @@
-import numpy as np
+"""
+This module contains code for interacting with hit graphs.
+A Graph is a namedtuple of matrices X, Ri, Ro, y.
+"""
+
 from collections import namedtuple
-from scipy.sparse import csr_matrix, find
+
+import numpy as np
+import torch
 import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
-from scipy.spatial import cKDTree
 import tqdm
 
-Graph = namedtuple('Graph', ['X', 'Ri', 'Ro', 'y','simmatched'])
+# A Graph is a namedtuple of matrices (X, Ri, Ro, y)
+from torch_sparse import transpose
 
-SparseGraph = namedtuple('SparseGraph',
-        ['X', 'Ri_rows', 'Ri_cols', 'Ro_rows', 'Ro_cols', 'y', 'simmatched'])
+class SpTensor:
+    def __init__(self, idxs, vals, shape):
+        self.idxs = idxs        
+        self.vals = vals
+        self.shape = shape
 
-def make_sparse_graph(X, Ri, Ro, y,simmatched=None):
-    Ri_rows, Ri_cols = Ri.nonzero()
-    Ro_rows, Ro_cols = Ro.nonzero()
-    return SparseGraph(X, Ri_rows, Ri_cols, Ro_rows, Ro_cols, y, simmatched)
+    def to(self, device):
+        return SpTensor(self.idxs.to(device), self.vals.to(device), self.shape)
+
+    def transpose(self):
+        (tidxs, tvals) = transpose(self.idxs, self.vals, self.shape[0], self.shape[1])
+        return SpTensor(tidxs, tvals, (self.shape[1], self.shape[0]))
+
+Graph = namedtuple('Graph', ['X', 'Ri', 'Ro', 'y', 'simmatched'])
+
+
+
+def graph_to_sparse(graph):
+    Ri_rows, Ri_cols = graph.Ri.nonzero()
+    Ro_rows, Ro_cols = graph.Ro.nonzero()
+    return dict(X=graph.X, y=graph.y,
+                Ri_rows=Ri_rows, Ri_cols=Ri_cols,
+                Ro_rows=Ro_rows, Ro_cols=Ro_cols,
+                simmatched=graph.simmatched
+               )
+
+def sparse_to_graph(X, Ri_rows, Ri_cols, Ro_rows, Ro_cols, y, simmatched, dtype=np.float32):
+    n_nodes, n_edges = X.shape[0], Ri_rows.shape[0]
+    spRi_idxs = np.stack([Ri_rows.astype(np.int64), Ri_cols.astype(np.int64)])
+    # Ri_rows and Ri_cols have the same shape
+    spRi_vals = np.ones((Ri_rows.shape[0],), dtype=dtype)
+    spRi = (spRi_idxs,spRi_vals,n_nodes,n_edges)#SpTensor(spRi_idxs, spRi_vals, (n_nodes, n_edges))
+
+    spRo_idxs = np.stack([Ro_rows.astype(np.int64), Ro_cols.astype(np.int64)])
+    # Ro_rows and Ro_cols have the same shape
+    spRo_vals = np.ones((Ro_rows.shape[0],), dtype=dtype)
+    spRo = (spRo_idxs,spRo_vals,n_nodes,n_edges)#SpTensor(spRo_idxs, spRo_vals, (n_nodes, n_edges))
+
+    if y.dtype != np.uint8:
+        y = y.astype(np.uint8)
+
+    return Graph(X, spRi, spRo, y, simmatched)
+
 
 def save_graph(graph, filename):
     """Write a single graph to an NPZ file archive"""
-    np.savez(filename, **graph._asdict())
-    #np.savez(filename, X=graph.X, Ri=graph.Ri, Ro=graph.Ro, y=graph.y)
+    np.savez(filename, **graph_to_sparse(graph))
+
 
 def save_graphs(graphs, filenames):
     for graph, filename in zip(graphs, filenames):
         save_graph(graph, filename)
 
-def load_graph(filename, graph_type=SparseGraph):
+
+def load_graph(filename):
     """Reade a single graph NPZ"""
     with np.load(filename) as f:
-        return graph_type(**dict(f.items()))
+        return sparse_to_graph(**dict(f.items()))
 
-def load_graphs(filenames, graph_type=SparseGraph):
+
+def load_graphs(filenames, graph_type=Graph):
     return [load_graph(f, graph_type) for f in filenames]
 
-def graph_from_sparse(sparse_graph, dtype=np.uint8):
-    n_nodes = sparse_graph.X.shape[0]
-    n_edges = sparse_graph.Ri_rows.shape[0]
-    mat_shape = (n_nodes,n_edges)
-    data = np.ones(n_edges)
-    Ri = csr_matrix((data,(sparse_graph.Ri_rows,sparse_graph.Ri_cols)),mat_shape,dtype=dtype)
-    Ro = csr_matrix((data,(sparse_graph.Ro_rows,sparse_graph.Ro_cols)),mat_shape,dtype=dtype)
-    return Graph(sparse_graph.X, Ri, Ro, sparse_graph.y, sparse_graph.simmatched)
-
-feature_names = ['x','y','layer','t','E']
-n_features = len(feature_names)
 
 #thanks Steve :-)
-def draw_sample_validation(X, Ri, Ro, y, 
+def draw_sample(X, Ri, Ro, y, out,
                 cmap='bwr_r', 
                 skip_false_edges=True,
-                alpha_labels=True, 
-                sim_list=None,
-                particular_simcluster_list=None,
-                itsn=None): 
-    
+                alpha_labels=False, 
+                sim_list=None): 
+    # Select the i/o node features for each segment    
+    feats_o = X[Ro]
+    feats_i = X[Ri]    
     # Prepare the figure
     fig, (ax0,ax1) = plt.subplots(1, 2, figsize=(20,12))
     cmap = plt.get_cmap(cmap)
     
-    if ((len(Ri) != 0) and (len(Ro) != 0)):
-        # Select the i/o node features for each segment    
-        feats_o = X[find(Ro)[0]]
-        feats_i = X[find(Ri)[0]]    
-
-
-
-
-        # Draw the segments
-        for j in tqdm.tqdm(range(y.shape[0])):
-            if not y[j] and skip_false_edges: continue
-            if alpha_labels:
-                seg_args = dict(c='b', alpha=0.3)
+    
+    #if sim_list is None:    
+        # Draw the hits (layer, x, y)
+    #    ax0.scatter(X[:,0], X[:,2], c='k')
+    #    ax1.scatter(X[:,1], X[:,2], c='k')
+    #else:        
+    #    ax0.scatter(X[:,0], X[:,2], c='k')
+    #    ax1.scatter(X[:,1], X[:,2], c='k')
+    #    ax0.scatter(X[sim_list,0], X[sim_list,2], c='b')
+    #    ax1.scatter(X[sim_list,1], X[sim_list,2], c='b')
+    
+    # Draw the segments
+        
+     
+    if out is not None:
+        t = tqdm.tqdm(range(out.shape[0]))
+        for j in t:       
+            if y[j] and out[j]>0.5: 
+                seg_args = dict(c='purple', alpha=0.2)
+            elif y[j] and out[j]<0.5: 
+                seg_args = dict(c='blue', alpha=0.2)
+            elif out[j]>0.5:
+                seg_args = dict(c='red', alpha=0.2)
             else:
-                seg_args = dict(c='b')
+                    continue #false edge
+
             ax0.plot([feats_o[j,0], feats_i[j,0]],
                      [feats_o[j,2], feats_i[j,2]], '-', **seg_args)
             ax1.plot([feats_o[j,1], feats_i[j,1]],
                      [feats_o[j,2], feats_i[j,2]], '-', **seg_args)
-        
-    if sim_list is None:    
-        # Draw the hits (layer, x, y)
-        ax0.scatter(X[:,0], X[:,2], c='k')
-        ax1.scatter(X[:,1], X[:,2], c='k')
     else:
-        if ((len(Ri) == 0) and (len(Ro) == 0)):
-            ax0.scatter(X[:,0], X[:,2], c='k', alpha=0.3)
-            ax1.scatter(X[:,1], X[:,2], c='k', alpha=0.3)
-        ax0.scatter(X[sim_list,0], X[sim_list,2], c='g')
-        ax1.scatter(X[sim_list,1], X[sim_list,2], c='g')
-        
-        if particular_simcluster_list is not None:
-            ax0.scatter(X[particular_simcluster_list,0], X[particular_simcluster_list,2], c='r')
-            ax1.scatter(X[particular_simcluster_list,1], X[particular_simcluster_list,2], c='r')  
-
-        if itsn is not None:
-            ax0.scatter(X[itsn,0], X[itsn,2], c='k', marker='^')
-            ax1.scatter(X[itsn,1], X[itsn,2], c='k', marker='^')         
+        t = tqdm.tqdm(range(y.shape[0]))
+        for j in t:
+            if y[j]:
+                seg_args = dict(c='b', alpha=0.4)
+            elif not skip_false_edges:
+                seg_args = dict(c='black', alpha=0.4)
+            else: continue
+                
+            ax0.plot([feats_o[j,0], feats_i[j,0]],
+                     [feats_o[j,2], feats_i[j,2]], '-', **seg_args)
+            ax1.plot([feats_o[j,1], feats_i[j,1]],
+                     [feats_o[j,2], feats_i[j,2]], '-', **seg_args)
         
     # Adjust axes
     ax0.set_xlabel('$x$ [cm]')
@@ -103,39 +140,4 @@ def draw_sample_validation(X, Ri, Ro, y,
     ax0.set_ylabel('$layer$ [arb]')
     ax1.set_ylabel('$layer$ [arb]')
     plt.tight_layout()
-    return fig, ax0, ax1
-
-def draw_sample3d(X, Ri, Ro, y, 
-                  cmap='bwr_r', 
-                  skip_false_edges=True,
-                  alpha_labels=False, 
-                  sim_list=None):
-    # Select the i/o node features for each segment
-    feats_o = X[find(Ri)[0]]
-    feats_i = X[find(Ro)[0]]
-    # Prepare the figure
-    fig = plt.figure()
-    ax2 = fig.add_subplot(111, projection='3d')
-    cmap = plt.get_cmap(cmap)
-    
-    if sim_list is None:    
-        # Draw the hits (layer, x, y)
-        ax2.scatter(X[:,0], X[:,1], X[:,2], c='k')
-    else:        
-        ax2.scatter(X[sim_list,0], X[sim_list,1], X[sim_list,2], c='k')
-    
-    # Draw the segments
-    for j in range(y.shape[0]):
-        if not y[j] and skip_false_edges: continue
-        if alpha_labels:
-            seg_args = dict(c='k', alpha=float(y[j]))
-        else:
-            seg_args = dict(c=cmap(float(y[j])))        
-        ax2.plot([feats_o[j,0], feats_i[j,0]],
-                 [feats_o[j,1], feats_i[j,1]],
-                 [feats_o[j,2], feats_i[j,2]],'-',**seg_args)
-    # Adjust axes
-    ax2.set_xlabel('$x$ [cm]')
-    ax2.set_ylabel('$y$ [cm]')
-    ax2.set_zlabel('$layer$ [arb]')
-    
+    return fig;
