@@ -11,20 +11,6 @@ import matplotlib.pyplot as plt
 import tqdm
 
 # A Graph is a namedtuple of matrices (X, Ri, Ro, y)
-from torch_sparse import transpose
-
-class SpTensor:
-    def __init__(self, idxs, vals, shape):
-        self.idxs = idxs        
-        self.vals = vals
-        self.shape = shape
-
-    def to(self, device):
-        return SpTensor(self.idxs.to(device), self.vals.to(device), self.shape)
-
-    def transpose(self):
-        (tidxs, tvals) = transpose(self.idxs, self.vals, self.shape[0], self.shape[1])
-        return SpTensor(tidxs, tvals, (self.shape[1], self.shape[0]))
 
 Graph = namedtuple('Graph', ['X', 'Ri', 'Ro', 'y', 'simmatched'])
 
@@ -44,12 +30,12 @@ def sparse_to_graph(X, Ri_rows, Ri_cols, Ro_rows, Ro_cols, y, simmatched, dtype=
     spRi_idxs = np.stack([Ri_rows.astype(np.int64), Ri_cols.astype(np.int64)])
     # Ri_rows and Ri_cols have the same shape
     spRi_vals = np.ones((Ri_rows.shape[0],), dtype=dtype)
-    spRi = (spRi_idxs,spRi_vals,n_nodes,n_edges)#SpTensor(spRi_idxs, spRi_vals, (n_nodes, n_edges))
+    spRi = (spRi_idxs,spRi_vals,n_nodes,n_edges)
 
     spRo_idxs = np.stack([Ro_rows.astype(np.int64), Ro_cols.astype(np.int64)])
     # Ro_rows and Ro_cols have the same shape
     spRo_vals = np.ones((Ro_rows.shape[0],), dtype=dtype)
-    spRo = (spRo_idxs,spRo_vals,n_nodes,n_edges)#SpTensor(spRo_idxs, spRo_vals, (n_nodes, n_edges))
+    spRo = (spRo_idxs,spRo_vals,n_nodes,n_edges)
 
     if y.dtype != np.uint8:
         y = y.astype(np.uint8)
