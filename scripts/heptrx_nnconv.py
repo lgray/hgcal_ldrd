@@ -18,9 +18,9 @@ import tqdm
 import argparse
 directed = False
 sig_weight = 1.0
-bkg_weight = 0.15
-batch_size = 32
-n_epochs = 20
+bkg_weight = 1.0
+batch_size = 1
+n_epochs = 50
 lr = 0.01
 hidden_dim = 64
 n_iters = 6
@@ -34,11 +34,11 @@ import logging
     
 def main(args):    
 
-    path = osp.join(os.environ['GNN_TRAINING_DATA_ROOT'], 'single_mu')
+    path = osp.join(os.environ['GNN_TRAINING_DATA_ROOT'], args.dataset)
     print(path)
-    full_dataset = HitGraphDataset(path, directed=directed)
+    full_dataset = HitGraphDataset(path, directed=directed, categorical=args.categorized)
     fulllen = len(full_dataset)
-    tv_frac = 0.10
+    tv_frac = 0.20
     tv_num = math.ceil(fulllen*tv_frac)
     splits = np.cumsum([fulllen-tv_num,0,tv_num])
     print(fulllen, splits)
@@ -53,9 +53,16 @@ def main(args):
 
     d = full_dataset
     num_features = d.num_features
-    num_classes = d[0].y.max().item() + 1 if d[0].y.dim() == 1 else d[0].y.size(1)
+    num_classes = d[0].y.dim() if d[0].y.dim() == 1 else d[0].y.size(1)
+    
+    if args.categorized:
+        if not args.forcecats:
+            num_classes = int(d[0].y.max().item()) + 1 if d[0].y.dim() == 1 else d[0].y.size(1)
+        else:
+            num_classes = args.cats
 
-    trainer = GNNTrainer(real_weight=sig_weight, fake_weight=bkg_weight, 
+
+    trainer = GNNTrainer(category_weights = np.array([0.5, 1., 1., 1.]), 
                          output_dir='/home/lagray/hgcal_ldrd/', device=device)
 
     trainer.logger.setLevel(logging.DEBUG)
@@ -66,32 +73,19 @@ def main(args):
         
     #example lr scheduling definition
     def lr_scaling(optimizer):
-        from torch.optim.lr_scheduler import LambdaLR
+        from torch.optim.lr_scheduler import ReduceLROnPlateau        
+        return ReduceLROnPlateau(optimizer, mode='min', verbose=True,
+                                 min_lr=1e-8, factor=0.2, 
+                                 threshold=0.1, patience=5)
         
-        lr_type = 'linear'
-        lr_warmup_epochs = 0
+    
+    trainer.build_model(name=args.model, loss_func=args.loss,
+                        optimizer=args.optimizer, learning_rate=args.lr, lr_scaling=lr_scaling,
+                        input_dim=num_features, hidden_dim=args.hidden_dim, n_iters=args.n_iters,
+                        output_dim=num_classes)
+    
+    trainer.print_model_summary()
         
-        warmup_factor = 0.
-        if lr_scaling == 'linear':
-            warmup_factor = 1.
-        
-        # LR ramp warmup schedule
-        def lr_warmup(epoch, warmup_factor=warmup_factor,
-                      warmup_epochs=lr_warmup_epochs):
-            if epoch < warmup_epochs:
-                return (1. - warmup_factor) * epoch / warmup_epochs + warmup_factor
-            else:
-                return 1.
-
-        # give the LR schedule to the trainer
-        return LambdaLR(optimizer, lr_warmup)
-    
-    trainer.build_model(name='EdgeNet', loss_func='binary_cross_entropy',
-                        optimizer='Adam', learning_rate=0.01, lr_scaling=lr_scaling,
-                        input_dim=num_features, hidden_dim=hidden_dim, n_iters=n_iters)
-    
-    print('made the hep.trkx trainer!')
-    
     train_summary = trainer.train(train_loader, n_epochs, valid_data_loader=valid_loader)
     
     print(train_summary)
@@ -100,7 +94,17 @@ def main(args):
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
-        
+    parser.add_argument('--categorized', '-c', action='store_true', default=False, help='Does the model you want to train have explicit categories?')
+    parser.add_argument('--forcecats', action='store_true', default=False, help='Do we want to force the number of categories?')
+    parser.add_argument('--cats', default=1, type=int, help='Number of categories to force')
+    parser.add_argument('--optimizer', '-o', default='Adam', help='Optimizer to use for training.')
+    parser.add_argument('--model', '-m', default='EdgeNet2', help='The model to train.')
+    parser.add_argument('--loss', '-l', default='binary_cross_entropy', help='Loss function to use in training.')
+    parser.add_argument('--lr', default=0.001, type=float, help='The starting learning rate.')
+    parser.add_argument('--hidden_dim', default=64, type=int, help='Latent space size.')
+    parser.add_argument('--n_iters', default=6, type=int, help='Number of times to iterate the graph.')
+    parser.add_argument('--dataset', '-d', default='single_photon')
+    
     args = parser.parse_args()
     main(args)
                                                 

@@ -23,9 +23,11 @@ class HitGraphDataset(Dataset):
     
     def __init__(self, root,
                  directed = True,
+                 categorical = False,
                  transform = None,
                  pre_transform = None):
         self._directed = directed
+        self._categorical = categorical
         super(HitGraphDataset, self).__init__(root, transform, pre_transform)
     
     def download(self):
@@ -55,20 +57,25 @@ class HitGraphDataset(Dataset):
         #convert the npz into pytorch tensors and save them
         path = self.processed_dir
         for idx,raw_path in enumerate(tqdm(self.raw_paths)):
+
             g = load_graph(raw_path)
             
             Ro = g.Ro[0].T.astype(np.int64)
             Ri = g.Ri[0].T.astype(np.int64)
             
-            i_out = Ro[Ro[:,1].argsort()][:,0]
-            i_in  = Ri[Ri[:,1].argsort()][:,0]
-            
+            i_out = Ro[Ro[:,1].argsort(kind='stable')][:,0]
+            i_in  = Ri[Ri[:,1].argsort(kind='stable')][:,0]
+                        
             x = g.X.astype(np.float32)
             edge_index = np.stack((i_out,i_in))
-            y = g.y.astype(np.float32)
+            y = g.y.astype(np.int64)
+            if not self._categorical:
+                y = g.y.astype(np.float32)
+            #print('y type',y.dtype)
             outdata = Data(x=torch.from_numpy(x),
                            edge_index=torch.from_numpy(edge_index),
                            y=torch.from_numpy(y))
+            
             if not self._directed and not outdata.is_undirected():
                 rows,cols = outdata.edge_index
                 temp = torch.stack((cols,rows))

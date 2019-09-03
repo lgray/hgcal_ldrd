@@ -89,9 +89,9 @@ class base(object):
         best_valid_loss = 99999
         for i in range(n_epochs):
             self.logger.info('Epoch %i' % i)
-            summary = dict(epoch=i)
+            summary = dict(epoch=i)            
             # Train on this epoch
-            sum_train = self.train_epoch(train_data_loader)
+            sum_train = self.train_epoch(train_data_loader)            
             summary.update(sum_train)
             # Evaluate on this epoch
             sum_valid = None
@@ -102,10 +102,7 @@ class base(object):
                 if sum_valid['valid_loss'] < best_valid_loss:
                     best_valid_loss = sum_valid['valid_loss']
                     self.logger.debug('Checkpointing new best model with loss: %.3f', best_valid_loss)
-                    self.write_checkpoint(checkpoint_id=i,best=True)
-                
-                if self.lr_scheduler is not None:
-                    self.lr_scheduler.step()
+                    self.write_checkpoint(checkpoint_id=i,best=True)                
 
             # Save summary, checkpoint
             self.save_summary(summary)
