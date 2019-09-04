@@ -6,11 +6,17 @@ from .EdgeNet import EdgeNet
 from .EdgeNet2 import EdgeNet2
 from .UnnormalizedEdgeNet import UnnormalizedEdgeNet
 from .gnn_geometric import GNNSegmentClassifier    
+from .GravNet import GravNet, energy_fraction_loss
 
 _models = {'UnnormalizedEdgeNet': UnnormalizedEdgeNet,
            'EdgeNet2': EdgeNet2,
            'EdgeNet': EdgeNet,
-           'heptrkx_segment_classifier': GNNSegmentClassifier}
+           'heptrkx_segment_classifier': GNNSegmentClassifier,
+           'GravNet': GravNet,
+}
+
+_losses = {'energy_fraction_loss': energy_fraction_loss,
+}
 
 def get_model(name, **model_args):
     """
@@ -20,3 +26,9 @@ def get_model(name, **model_args):
         return _models[name](**model_args)
     else:
         raise Exception('Model %s unknown' % name)
+
+# attach custom losses to functional
+from torch import nn
+def get_losses():
+    for loss,fn in _losses.items():
+        setattr(nn.functional,loss,fn)

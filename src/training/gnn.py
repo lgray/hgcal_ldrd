@@ -15,7 +15,7 @@ import tqdm
 
 import numpy as np
 
-from models import get_model
+from models import get_model, get_losses
 # Locals
 from .base import base
 
@@ -40,6 +40,7 @@ class GNNTrainer(base):
         self.model = get_model(name=name, **model_args).to(self.device)
 
         # Construct the loss function
+        get_losses()
         self.loss_func = getattr(nn.functional, loss_func)
 
         # Construct the optimizer

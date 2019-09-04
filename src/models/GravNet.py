@@ -159,3 +159,12 @@ class EnergyFractionLoss(nn.Module):
         # sum of weighted differences
         loss = np.sum(numers/denoms)
         return loss
+
+# interface for loss function
+# defines features in target: BxVx[energy, truth fraction]
+def energy_fraction_loss(input, target, weight=None):
+    return EnergyFractionLoss().forward(
+        energy = target[:,:,0],
+        pred = input,
+        truth = target[:,:,1],
+    )
