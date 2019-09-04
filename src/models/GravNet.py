@@ -161,10 +161,10 @@ class EnergyFractionLoss(nn.Module):
         return loss
 
 # interface for loss function
-# defines features in target: BxVx[energy, truth fraction]
+# defines features in target: BxVx[energy, truth fraction, truth fraction, ...]
 def energy_fraction_loss(input, target, weight=None):
     return EnergyFractionLoss().forward(
         energy = target[:,:,0],
         pred = input,
-        truth = target[:,:,1],
+        truth = target[:,:,1:],
     )
