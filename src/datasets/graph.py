@@ -43,20 +43,26 @@ def sparse_to_graph(X, Ri_rows, Ri_cols, Ro_rows, Ro_cols, y, simmatched, dtype=
     return Graph(X, spRi, spRo, y, simmatched)
 
 
-def save_graph(graph, filename):
+def save_graph(graph, filename, sparse):
     """Write a single graph to an NPZ file archive"""
-    np.savez(filename, **graph_to_sparse(graph))
+    if sparse:
+        np.savez(filename, **graph_to_sparse(graph))
+    else:
+        np.savez(filename, **graph._asdict())
 
 
-def save_graphs(graphs, filenames):
+def save_graphs(graphs, filenames, sparse =True):
     for graph, filename in zip(graphs, filenames):
-        save_graph(graph, filename)
+        save_graph(graph, filename, sparse)
 
 
-def load_graph(filename):
+def load_graph(filename, sparse =True):
     """Reade a single graph NPZ"""
     with np.load(filename) as f:
-        return sparse_to_graph(**dict(f.items()))
+        if sparse:
+            return sparse_to_graph(**dict(f.items()))
+        else:
+            return Graph(**dict(f.items()))
 
 
 def load_graphs(filenames, graph_type=Graph):

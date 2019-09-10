@@ -7,20 +7,20 @@ from scipy.sparse import csr_matrix, find
 from scipy.spatial import cKDTree
 from tqdm import tqdm
 
-from datasets.graph import graph_to_sparse, save_graph
+from datasets.graph import graph_to_sparse,sparse_to_graph, save_graph
 
 from preprocessing import *
 
 
 # for PointNet
-#preprocessing_algo = make_graph_noedge
+preprocessing_algo = make_graph_noedge
 
 # for EdgeNet
-preprocessing_algo = make_graph_etaphi
-grouping_algo = 'knn' #or 'kdtree'
-preprocessing_args= dict(k=4)
+#preprocessing_algo = make_graph_etaphi
+#grouping_algo = 'knn' #or 'kdtree'
+#preprocessing_args= dict(k=4)
 #preprocessing_args= dict(r = 0.07) #if algo == 'kdtree'
-layer_norm = 150 #only used for etaphi, no effect for other preprocessors
+#layer_norm = 150 #only used for etaphi, no effect for other preprocessors
 
 fname = '../data/ntup/partGun_PDGid15_x1000_Pt3.0To100.0_NTUP_1.root'
 
@@ -43,13 +43,13 @@ for ievt in tqdm(range(NEvents),desc='events processed'):
     #make input graphs
     
     # for EdgeNet
-    pos_graph = preprocessing_algo(rechit, valid_sim_indices, ievt = ievt, mask = rechit[b'rechit_z'][ievt] > 0,
-                                   layered_norm = layer_norm, algo=grouping_algo, preprocessing_args=preprocessing_args)
-    neg_graph = preprocessing_algo(rechit, valid_sim_indices, ievt = ievt, mask = rechit[b'rechit_z'][ievt] < 0,
-                                   layered_norm = layer_norm, algo=grouping_algo, preprocessing_args=preprocessing_args)
+    #pos_graph = preprocessing_algo(rechit, valid_sim_indices, ievt = ievt, mask = rechit[b'rechit_z'][ievt] > 0,
+    #                               layered_norm = layer_norm, algo=grouping_algo, preprocessing_args=preprocessing_args)
+    #neg_graph = preprocessing_algo(rechit, valid_sim_indices, ievt = ievt, mask = rechit[b'rechit_z'][ievt] < 0,
+    #                               layered_norm = layer_norm, algo=grouping_algo, preprocessing_args=preprocessing_args)
     # for PointNet
-    #pos_graph = preprocessing_algo(rechit, valid_sim_indices, ievt = ievt, mask = rechit[b'rechit_z'][ievt] > 0)
-    #neg_graph = preprocessing_algo(rechit, valid_sim_indices, ievt = ievt, mask = rechit[b'rechit_z'][ievt] < 0)
+    pos_graph = preprocessing_algo(rechit, valid_sim_indices, ievt = ievt, mask = rechit[b'rechit_z'][ievt] > 0)
+    neg_graph = preprocessing_algo(rechit, valid_sim_indices, ievt = ievt, mask = rechit[b'rechit_z'][ievt] < 0)
     
     #write the graph and truth graph out
     outbase = fname.split('/')[-1].replace('.root','')
@@ -58,10 +58,10 @@ for ievt in tqdm(range(NEvents),desc='events processed'):
         os.makedirs(outdir)
 
     # for EdgeNet
-    save_graph(pos_graph, '%s/%s_hgcal_graph_pos_evt%d.npz'%(outdir,outbase,ievt))
-    save_graph(neg_graph, '%s/%s_hgcal_graph_neg_evt%d.npz'%(outdir,outbase,ievt))
+    #save_graph(pos_graph, '%s/%s_hgcal_graph_pos_evt%d.npz'%(outdir,outbase,ievt))
+    #save_graph(neg_graph, '%s/%s_hgcal_graph_neg_evt%d.npz'%(outdir,outbase,ievt))
     #saved as sparse
     
     # for PointNet
-    #save_graph(pos_graph, '%s/%s_hgcal_graph_pos_evt%d.npz'%(outdir,outbase,ievt))
-    #save_graph(neg_graph, '%s/%s_hgcal_graph_neg_evt%d.npz'%(outdir,outbase,ievt))
+    save_graph(pos_graph, '%s/%s_hgcal_graph_pos_evt%d.npz'%(outdir,outbase,ievt), sparse=False)
+    save_graph(neg_graph, '%s/%s_hgcal_graph_neg_evt%d.npz'%(outdir,outbase,ievt), sparse=False)
