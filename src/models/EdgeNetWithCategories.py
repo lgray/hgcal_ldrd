@@ -13,11 +13,12 @@ from torch.utils.checkpoint import checkpoint
 
 from torch_geometric.nn import EdgeConv
 
-class UnnormalizedEdgeNet(nn.Module):
-    def __init__(self, input_dim=3, hidden_dim=8, output_dim=4, n_iters=1, aggr='add'):
-        super(UnnormalizedEdgeNet, self).__init__()
+class EdgeNetWithCategories(nn.Module):
+    def __init__(self, input_dim=3, hidden_dim=8, output_dim=4, n_iters=1, aggr='add',
+                 norm=torch.tensor([1./500., 1./500., 1./54., 1/25., 1./1000.])):
+        super(EdgeNetWithCategories, self).__init__()
 
-        self.datanorm = torch.tensor([1./500., 1./500., 1./54., 1/25., 1./1000.]).to('cuda')
+        self.datanorm = nn.Parameter(norm)
         
         start_width = 2 * (hidden_dim + input_dim)
         middle_width = (3 * hidden_dim + 2*input_dim) // 2

@@ -120,7 +120,7 @@ class GravNet(nn.Module):
         # first block just takes kwargs
         self.blocks = [GravBlock(**kwargs)]
         # subsequent blocks need to know the first block's output
-        self.blocks.extend([GravBlock(input_dim = self.blocks[0].out_dim, **kwargs) for n in range(1, n_blocks)]
+        self.blocks.extend([GravBlock(input_dim = self.blocks[0].out_dim, **kwargs) for n in range(1, n_blocks)])
         # final set of layers: dense ReLU, input from all blocks -> small dense ReLU -> small dense softmax
         self.final = nn.Sequential(
             nn.Linear(in_features=n_blocks*self.blocks[0].out_dim,out_features=final_dim),
@@ -140,7 +140,7 @@ class GravNet(nn.Module):
         x = self.batchnorm(x)
         # feed each block's output to the next
         all_output = [x]
-        for block in self.blocks[]:
+        for block in self.blocks:
             block_output = block(all_output[-1])
             block_output = self.batchnorm(block_output)
             all_output.append(block_output)
