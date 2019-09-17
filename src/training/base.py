@@ -101,7 +101,7 @@ class base(object):
                 
                 if sum_valid['valid_loss'] < best_valid_loss:
                     best_valid_loss = sum_valid['valid_loss']
-                    self.logger.debug('Checkpointing new best model with loss: %.3f', best_valid_loss)
+                    self.logger.debug('Checkpointing new best model with loss: %.5f', best_valid_loss)
                     self.write_checkpoint(checkpoint_id=i,best=True)                
 
             # Save summary, checkpoint

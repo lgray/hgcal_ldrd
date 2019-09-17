@@ -15,6 +15,7 @@ class EdgeNet2(nn.Module):
         super(EdgeNet2, self).__init__()
         convnn = nn.Sequential(nn.Linear(2*(hidden_dim + input_dim), (3*hidden_dim + 2*input_dim) // 2),
                                nn.ReLU(),
+                               nn.Dropout(),
                                nn.Linear((3*hidden_dim + 2*input_dim) // 2, hidden_dim),
                                nn.ReLU()
         )
@@ -23,11 +24,11 @@ class EdgeNet2(nn.Module):
         
         self.inputnet =  nn.Sequential(
             nn.Linear(input_dim, hidden_dim),
-            nn.Sigmoid()
+            nn.BatchNorm1d(hidden_dim),
+            nn.Tanh()
         )
 
-        self.edgenetwork = nn.Sequential(nn.Dropout(p=0.5, inplace=False),
-                                         nn.Linear(2*(n_iters*hidden_dim+input_dim), output_dim),
+        self.edgenetwork = nn.Sequential(nn.Linear(2*(n_iters*hidden_dim+input_dim), output_dim),
                                          nn.Sigmoid())
         
         self.nodenetwork = EdgeConv(nn=convnn,aggr=aggr)

@@ -12,6 +12,9 @@ from torch_geometric.utils import normalized_cut
 from torch_geometric.nn import (NNConv, graclus, max_pool, max_pool_x,
                                 global_mean_pool)
 
+torch.backends.cudnn.benchmark = True
+torch.backends.cudnn.enabled = True
+
 from datasets.hitgraphs import HitGraphDataset
 
 import tqdm
@@ -19,7 +22,8 @@ import argparse
 directed = False
 sig_weight = 1.0
 bkg_weight = 1.0
-batch_size = 1
+train_batch_size = 1
+valid_batch_size = 1
 n_epochs = 50
 lr = 0.01
 hidden_dim = 64
@@ -45,8 +49,8 @@ def main(args):
     
     train_dataset = torch.utils.data.Subset(full_dataset,np.arange(start=0,stop=splits[0]))
     valid_dataset = torch.utils.data.Subset(full_dataset,np.arange(start=splits[1],stop=splits[2]))
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, pin_memory=True)
-    valid_loader = DataLoader(valid_dataset, batch_size=batch_size, shuffle=False)
+    train_loader = DataLoader(train_dataset, batch_size=train_batch_size, pin_memory=True)
+    valid_loader = DataLoader(valid_dataset, batch_size=valid_batch_size, shuffle=False)
 
     train_samples = len(train_dataset)
     valid_samples = len(valid_dataset)
@@ -62,7 +66,8 @@ def main(args):
             num_classes = args.cats
 
 
-    trainer = GNNTrainer(category_weights = np.array([0.5, 1., 1., 1.]), 
+    the_weights = np.array([1., 1., 1., 1.]) #[0.017, 1., 1., 10.]
+    trainer = GNNTrainer(category_weights = the_weights, 
                          output_dir='/home/lagray/hgcal_ldrd/', device=device)
 
     trainer.logger.setLevel(logging.DEBUG)
@@ -75,8 +80,8 @@ def main(args):
     def lr_scaling(optimizer):
         from torch.optim.lr_scheduler import ReduceLROnPlateau        
         return ReduceLROnPlateau(optimizer, mode='min', verbose=True,
-                                 min_lr=1e-8, factor=0.2, 
-                                 threshold=0.1, patience=5)
+                                 min_lr=5e-7, factor=0.2, 
+                                 threshold=0.01, patience=5)
         
     
     trainer.build_model(name=args.model, loss_func=args.loss,

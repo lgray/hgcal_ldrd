@@ -19,6 +19,7 @@ Graph = namedtuple('Graph', ['X', 'Ri', 'Ro', 'y', 'simmatched'])
 def graph_to_sparse(graph):
     Ri_rows, Ri_cols = graph.Ri.nonzero()
     Ro_rows, Ro_cols = graph.Ro.nonzero()
+        
     return dict(X=graph.X, y=graph.y,
                 Ri_rows=Ri_rows, Ri_cols=Ri_cols,
                 Ro_rows=Ro_rows, Ro_cols=Ro_cols,
@@ -45,7 +46,7 @@ def sparse_to_graph(X, Ri_rows, Ri_cols, Ro_rows, Ro_cols, y, simmatched, dtype=
 
 def save_graph(graph, filename):
     """Write a single graph to an NPZ file archive"""
-    np.savez(filename, **graph_to_sparse(graph))
+    np.savez_compressed(filename, **graph_to_sparse(graph))
 
 
 def save_graphs(graphs, filenames):
@@ -94,11 +95,11 @@ def draw_sample(X, Ri, Ro, y, out,
         t = tqdm.tqdm(range(out.shape[0]))
         for j in t:       
             if y[j] and out[j]>0.5: 
-                seg_args = dict(c='purple', alpha=0.2)
-            elif y[j] and out[j]<0.5: 
-                seg_args = dict(c='blue', alpha=0.2)
-            elif out[j]>0.5:
-                seg_args = dict(c='red', alpha=0.2)
+                seg_args = dict(c='purple', alpha=0.2) #hadronic edge
+            elif y[j] and out[j]<1.5: 
+                seg_args = dict(c='blue', alpha=0.2) #EM edge
+            elif out[j]>2.5:
+                seg_args = dict(c='red', alpha=0.2) #muon edge
             else:
                     continue #false edge
 
