@@ -31,4 +31,4 @@ def get_model(name, **model_args):
 from torch import nn
 def get_losses():
     for loss,fn in _losses.items():
-        setattr(nn.functional,loss,fn)
+        setattr(nn.functional, loss, fn)

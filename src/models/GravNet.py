@@ -101,6 +101,7 @@ class GravBlock(nn.Module):
                     nn.Tanh(),
                 ),
             ),
+            nn.BatchNorm1d(out_dim)
         )
         # keep track of this in order to chain blocks together
         self.out_dim = out_dim
@@ -117,54 +118,49 @@ class GravBlock(nn.Module):
 class GravNet(nn.Module):
     # kwargs passed to GravBlocks
     def __init__(self, n_blocks = 4, final_dim = 128, n_clusters = 2, **kwargs):
+        #batch norm for the input data
+        self.inputnorm = nn.BatchNorm1d(kwargs['input_dim'])
         # first block just takes kwargs
         self.blocks = [GravBlock(**kwargs)]
         # subsequent blocks need to know the first block's output
-        self.blocks.extend([GravBlock(input_dim = self.blocks[0].out_dim, **kwargs) for n in range(1, n_blocks)])
-        # final set of layers: dense ReLU, input from all blocks -> small dense ReLU -> small dense softmax
+        self.blocks.extend([GravBlock(input_dim = self.blocks[0].out_dim, **kwargs) for n in range(1, n_blocks)])                
+        # final set of layers: dense ReLU, input from all blocks -> small dense ReLU -> small dense softmax        
         self.final = nn.Sequential(
             nn.Linear(in_features=n_blocks*self.blocks[0].out_dim,out_features=final_dim),
             nn.ReLU(),
             nn.Linear(in_features=final_dim,out_features=n_clusters+1),
             nn.ReLU(),
-            nn.Linear(in_features=n_showers+1,out_features=n_clusters),
+            nn.Linear(in_features=n_clusters+1,out_features=n_clusters),
             nn.Softmax(),
         )
-
-    def batchnorm(self, x):
-        # apply batch norm to x based on length of 2nd dim (# of features)
-        return nn.BatchNorm1d(np.size(x,1))(x)
-        
+    
     def forward(self, x):
         # apply batch norm to input (and then to all block outputs)
-        x = self.batchnorm(x)
+        x = self.inputnorm(x)
         # feed each block's output to the next
         all_output = [x]
         for block in self.blocks:
-            block_output = block(all_output[-1])
-            block_output = self.batchnorm(block_output)
+            block_output = block(all_output[-1])            
             all_output.append(block_output)
         # concatenate output from all blocks
         all_output = torch.cat(all_output[1:], dim=1)
         return self.final(all_output)
 
-# loss function to be used in training
+# define the loss function
+# expects features in target: BxVx[energy, truth fraction, truth fraction, ...]
+def energy_fraction_loss(pred, target, weight=None):
+    energy = target[:,0]
+    truth = target[:,1:]
+    # used for per-sensor energy weighting w/in cluster
+    total_energy_cluster = torch.sqrt(energy*truth)
+    # get numer and denom terms for each shower
+    numers = torch.sum(total_energy_cluster*(pred-truth)**2,axis=1)
+    denoms = torch.sum(total_energy_cluster,axis=1)
+    # sum of weighted differences
+    loss = torch.sum(numers/denoms)
+    return loss
+    
+# make a module
 class EnergyFractionLoss(nn.Module):
     def forward(self, energy, pred, truth):
-        # used for per-sensor energy weighting w/in cluster
-        total_energy_cluster = np.sqrt(energy*truth)
-        # get numer and denom terms for each shower
-        numers = np.sum(total_energy_cluster*(pred-truth)**2,axis=1)
-        denoms = np.sum(total_energy_cluster,axis=1)
-        # sum of weighted differences
-        loss = np.sum(numers/denoms)
-        return loss
-
-# interface for loss function
-# defines features in target: BxVx[energy, truth fraction, truth fraction, ...]
-def energy_fraction_loss(input, target, weight=None):
-    return EnergyFractionLoss().forward(
-        energy = target[:,:,0],
-        pred = input,
-        truth = target[:,:,1:],
-    )
+        return energy_fraction_loss(energy, pred, truth)
