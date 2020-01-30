@@ -26,8 +26,12 @@ class EdgeNetWithCategories(nn.Module):
         self.n_iters = n_iters
                 
         self.inputnet =  nn.Sequential(
-            nn.Linear(input_dim, hidden_dim),
-            nn.Tanh(),            
+            nn.Linear(input_dim, 2*hidden_dim),            
+            nn.Tanh(),
+            nn.Linear(2*hidden_dim, 2*hidden_dim),
+            nn.Tanh(),
+            nn.Linear(2*hidden_dim, hidden_dim),
+            nn.Tanh(),
         )
 
         self.edgenetwork = nn.Sequential(nn.Linear(2*n_iters*hidden_dim, 2*hidden_dim),
