@@ -37,37 +37,40 @@ class DynamicReductionNetwork(nn.Module):
     # This allows single quantities to be regressed from complex point counts
     # in a location and orientation invariant way.
     # One encoding layer is used to abstract away the input features.
-    def __init__(self, input_dim=5, hidden_dim=128, output_dim=1, k=8, n_iters = 4, aggr='add',
+    def __init__(self, input_dim=5, hidden_dim=64, output_dim=1, k=16, aggr='add',
                  norm=torch.tensor([1./500., 1./500., 1./54., 1/25., 1./1000.])):
         super(DynamicReductionNetwork, self).__init__()
 
         self.datanorm = nn.Parameter(norm)
         
         self.k = k
-        start_width = 4 * hidden_dim
-        middle_width = 3 * hidden_dim
+        start_width = 2 * hidden_dim
+        middle_width = 3 * hidden_dim // 2
 
         self.inputnet =  nn.Sequential(
             nn.Linear(input_dim, 2*hidden_dim),            
             nn.ELU(),
             nn.Linear(2*hidden_dim, 2*hidden_dim),
             nn.ELU(),
-            nn.Linear(2*hidden_dim, 2*hidden_dim),
+            nn.Linear(2*hidden_dim, hidden_dim),
             nn.ELU(),
         )        
-        convnn = nn.Sequential(nn.Linear(start_width, middle_width),
-                               nn.ELU(),
-                               nn.Linear(middle_width, 2*hidden_dim),                                             
-                               nn.ELU()
-                               )
+        convnn1 = nn.Sequential(nn.Linear(start_width, middle_width),
+                                nn.ELU(),
+                                nn.Linear(middle_width, hidden_dim),                                             
+                                nn.ELU()
+                                )
+        convnn2 = nn.Sequential(nn.Linear(start_width, middle_width),
+                                nn.ELU(),
+                                nn.Linear(middle_width, hidden_dim),                                             
+                                nn.ELU()
+                                )                
                 
-        self.edgeconv = EdgeConv(nn=convnn, aggr=aggr)
+        self.edgeconv1 = EdgeConv(nn=convnn1, aggr=aggr)
+        self.edgeconv2 = EdgeConv(nn=convnn2, aggr=aggr)
         
-        self.reducer = EdgePooling(hidden_dim)
-        
-        self.output = nn.Sequential(nn.Linear(2*hidden_dim, hidden_dim),
+        self.output = nn.Sequential(nn.Linear(hidden_dim, hidden_dim),
                                     nn.ELU(),
-                                    nn.Dropout(),
                                     nn.Linear(hidden_dim, hidden_dim//2),
                                     nn.ELU(),                                    
                                     nn.Linear(hidden_dim//2, output_dim))
@@ -75,19 +78,20 @@ class DynamicReductionNetwork(nn.Module):
         
     def forward(self, data):        
         data.x = self.datanorm * data.x
-        data.x = self.inputnet(data.x)        
-        data.edge_index = knn_graph(data.pos, self.k, data.batch, loop=False, flow=self.edgeconv.flow)
-                
-        data.x = self.edgeconv(data.x, data.edge_index)
+        data.x = self.inputnet(data.x)
         
-        weight = normalized_cut_2d(data.edge_index, data.pos)
+        data.edge_index = to_undirected(knn_graph(data.x, self.k, data.batch, loop=False, flow=self.edgeconv1.flow))
+        data.x = self.edgeconv1(data.x, data.edge_index)
+        
+        weight = normalized_cut_2d(data.edge_index, data.x)
         cluster = graclus(data.edge_index, weight, data.x.size(0))
         data.edge_attr = None
         data = max_pool(cluster, data)
         
-        data.x = self.edgeconv(data.x, data.edge_index)
+        data.edge_index = to_undirected(knn_graph(data.x, self.k, data.batch, loop=False, flow=self.edgeconv2.flow))
+        data.x = self.edgeconv2(data.x, data.edge_index)
         
-        weight = normalized_cut_2d(data.edge_index, data.pos)
+        weight = normalized_cut_2d(data.edge_index, data.x)
         cluster = graclus(data.edge_index, weight, data.x.size(0))
         x, batch = max_pool_x(cluster, data.x, data.batch)
 
