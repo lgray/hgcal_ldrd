@@ -48,11 +48,11 @@ class DynamicReductionNetwork(nn.Module):
         middle_width = 3 * hidden_dim // 2
 
         self.inputnet =  nn.Sequential(
-            nn.Linear(input_dim, 2*hidden_dim),            
+            nn.Linear(input_dim, hidden_dim//2),            
             nn.ELU(),
-            nn.Linear(2*hidden_dim, 2*hidden_dim),
+            nn.Linear(hidden_dim//2, hidden_dim),
             nn.ELU(),
-            nn.Linear(2*hidden_dim, hidden_dim),
+            nn.Linear(hidden_dim, hidden_dim),
             nn.ELU(),
         )        
         convnn1 = nn.Sequential(nn.Linear(start_width, middle_width),
